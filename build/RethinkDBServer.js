@@ -48,7 +48,7 @@ var _require = require('child_process'),
 _tmp2.default.setGracefulCleanup();
 
 var getPortOffset = function getPortOffset(pid) {
-  var maxOffset = 65535 - 28015;
+  var maxOffset = 40000 - 28015;
   return pid - Math.floor(pid / maxOffset) * maxOffset;
 };
 
@@ -65,6 +65,8 @@ var getOptions = function () {
           case 3:
             server.port = _context.sent;
 
+            server.portOffset = server.port - 28015;
+
             server.tmpFile = _tmp2.default.dirSync({ prefix: "rethinkmem-", unsafeCleanup: true });
             server.dbPath = server.dbPath || server.tmpFile.name;
 
@@ -73,7 +75,7 @@ var getOptions = function () {
               '-d': server.dbPath
             });
 
-          case 7:
+          case 8:
           case 'end':
             return _context.stop();
         }
@@ -180,13 +182,12 @@ var getConnectionParams = function () {
                                     return _rethinkdb2.default.dbCreate(db).run(conn);
 
                                   case 2:
-                                    console.log('created db: ' + db);
 
                                     resolve((0, _extends3.default)({
                                       db: db
                                     }, options));
 
-                                  case 4:
+                                  case 3:
                                   case 'end':
                                     return _context3.stop();
                                 }

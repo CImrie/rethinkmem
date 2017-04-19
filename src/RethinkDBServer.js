@@ -6,13 +6,15 @@ const {spawn} = require('child_process');
 tmp.setGracefulCleanup();
 
 const getPortOffset = pid => {
-  const maxOffset = 65535 - 28015;
+  const maxOffset = 40000 - 28015;
   return pid - (Math.floor(pid / maxOffset) * maxOffset)
 };
 
 let getOptions = async () => {
   server.portOffset = getPortOffset(process.pid);
   server.port = await getport(28015 + server.portOffset);
+  server.portOffset = server.port - 28015;
+
   server.tmpFile = tmp.dirSync({prefix: "rethinkmem-", unsafeCleanup: true});
   server.dbPath = server.dbPath || server.tmpFile.name;
 
@@ -64,7 +66,6 @@ let getConnectionParams = async () => {
   return new Promise(async (resolve, reject) => {
     rethinkdb.connect(options, async function(err, conn) {
       await rethinkdb.dbCreate(db).run(conn);
-      console.log('created db: ' + db);
 
       resolve({
         db,
