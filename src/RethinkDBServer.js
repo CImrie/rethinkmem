@@ -1,25 +1,33 @@
 import uuid from 'uuid/v4';
 import tmp from 'tmp';
-import getport from 'get-port';
 import rethinkdb from 'rethinkdb';
 const {spawn} = require('child_process');
+import getPorts from 'get-ports';
 tmp.setGracefulCleanup();
 
-const getPortOffset = pid => {
-  const maxOffset = 40000 - 28015;
-  return pid - (Math.floor(pid / maxOffset) * maxOffset)
-};
 
 let getOptions = async () => {
-  server.portOffset = getPortOffset(process.pid);
-  server.port = await getport(28015 + server.portOffset);
+  let ports = await new Promise((resolve, reject) => {
+    getPorts([28015, 29015], 65500, (err, ports) => {
+      if(err) {
+        reject(err);
+      }
+
+      resolve(ports);
+    });
+  });
+
+  let driverPort = server.port = ports[0];
+  let clusterPort = ports[1];
+
   server.portOffset = server.port - 28015;
 
   server.tmpFile = tmp.dirSync({prefix: "rethinkmem-", unsafeCleanup: true});
   server.dbPath = server.dbPath || server.tmpFile.name;
 
   return {
-    '-o': server.portOffset,
+    '--cluster-port': clusterPort,
+    '--driver-port': driverPort,
     '-d': server.dbPath,
   }
 };
@@ -32,10 +40,9 @@ let start = async () => {
   let options = await getOptions();
 
   server.tearDown = function () {
+    server.process.stdin.pause();
+    server.process.kill('SIGTERM');
     server.tmpFile.removeCallback();
-    if(this.process.connected) {
-      this.process.kill();
-    }
   };
 
   let consoleOptions = [];
@@ -45,10 +52,28 @@ let start = async () => {
     consoleOptions.push(options[option]);
   });
 
-  server.process = await spawn('rethinkdb', consoleOptions);
-  server.running = server.process.connected;
+  consoleOptions.push('--no-http-admin');
 
-  return server.running;
+  server.process = spawn('rethinkdb', consoleOptions);
+
+  return new Promise((resolve) => {
+    if(server.debug) {
+      server.process.stderr.on('data', data => {
+        console.error(data.toString());
+      });
+    }
+
+    server.process.stdout.on('data', data => {
+      if(server.debug) {
+        console.log(data.toString());
+      }
+
+      if(data.toString().includes("Server ready")){
+        server.running = true;
+        resolve(server.running);
+      }
+    });
+  });
 };
 
 let getConnectionParams = async () => {

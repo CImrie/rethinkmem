@@ -8,10 +8,6 @@ var _extends2 = require('babel-runtime/helpers/extends');
 
 var _extends3 = _interopRequireDefault(_extends2);
 
-var _promise = require('babel-runtime/core-js/promise');
-
-var _promise2 = _interopRequireDefault(_promise);
-
 var _keys = require('babel-runtime/core-js/object/keys');
 
 var _keys2 = _interopRequireDefault(_keys);
@@ -19,6 +15,10 @@ var _keys2 = _interopRequireDefault(_keys);
 var _regenerator = require('babel-runtime/regenerator');
 
 var _regenerator2 = _interopRequireDefault(_regenerator);
+
+var _promise = require('babel-runtime/core-js/promise');
+
+var _promise2 = _interopRequireDefault(_promise);
 
 var _asyncToGenerator2 = require('babel-runtime/helpers/asyncToGenerator');
 
@@ -32,13 +32,13 @@ var _tmp = require('tmp');
 
 var _tmp2 = _interopRequireDefault(_tmp);
 
-var _getPort = require('get-port');
-
-var _getPort2 = _interopRequireDefault(_getPort);
-
 var _rethinkdb = require('rethinkdb');
 
 var _rethinkdb2 = _interopRequireDefault(_rethinkdb);
+
+var _getPorts = require('get-ports');
+
+var _getPorts2 = _interopRequireDefault(_getPorts);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -47,23 +47,29 @@ var _require = require('child_process'),
 
 _tmp2.default.setGracefulCleanup();
 
-var getPortOffset = function getPortOffset(pid) {
-  var maxOffset = 40000 - 28015;
-  return pid - Math.floor(pid / maxOffset) * maxOffset;
-};
-
 var getOptions = function () {
   var _ref = (0, _asyncToGenerator3.default)(_regenerator2.default.mark(function _callee() {
+    var ports, driverPort, clusterPort;
     return _regenerator2.default.wrap(function _callee$(_context) {
       while (1) {
         switch (_context.prev = _context.next) {
           case 0:
-            server.portOffset = getPortOffset(process.pid);
-            _context.next = 3;
-            return (0, _getPort2.default)(28015 + server.portOffset);
+            _context.next = 2;
+            return new _promise2.default(function (resolve, reject) {
+              (0, _getPorts2.default)([28015, 29015], 65500, function (err, ports) {
+                if (err) {
+                  reject(err);
+                }
 
-          case 3:
-            server.port = _context.sent;
+                resolve(ports);
+              });
+            });
+
+          case 2:
+            ports = _context.sent;
+            driverPort = server.port = ports[0];
+            clusterPort = ports[1];
+
 
             server.portOffset = server.port - 28015;
 
@@ -71,11 +77,12 @@ var getOptions = function () {
             server.dbPath = server.dbPath || server.tmpFile.name;
 
             return _context.abrupt('return', {
-              '-o': server.portOffset,
+              '--cluster-port': clusterPort,
+              '--driver-port': driverPort,
               '-d': server.dbPath
             });
 
-          case 8:
+          case 9:
           case 'end':
             return _context.stop();
         }
@@ -111,10 +118,9 @@ var start = function () {
 
 
             server.tearDown = function () {
+              server.process.stdin.pause();
+              server.process.kill('SIGTERM');
               server.tmpFile.removeCallback();
-              if (this.process.connected) {
-                this.process.kill();
-              }
             };
 
             consoleOptions = [];
@@ -125,17 +131,30 @@ var start = function () {
               consoleOptions.push(options[option]);
             });
 
-            _context2.next = 10;
-            return spawn('rethinkdb', consoleOptions);
+            consoleOptions.push('--no-http-admin');
 
-          case 10:
-            server.process = _context2.sent;
+            server.process = spawn('rethinkdb', consoleOptions);
 
-            server.running = server.process.connected;
+            return _context2.abrupt('return', new _promise2.default(function (resolve) {
+              if (server.debug) {
+                server.process.stderr.on('data', function (data) {
+                  console.error(data.toString());
+                });
+              }
 
-            return _context2.abrupt('return', server.running);
+              server.process.stdout.on('data', function (data) {
+                if (server.debug) {
+                  console.log(data.toString());
+                }
 
-          case 13:
+                if (data.toString().includes("Server ready")) {
+                  server.running = true;
+                  resolve(server.running);
+                }
+              });
+            }));
+
+          case 11:
           case 'end':
             return _context2.stop();
         }
