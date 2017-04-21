@@ -5,12 +5,15 @@ test.before(async t => {
   await RethinkDBServer.start();
 });
 
-test.beforeEach(t => {
-  console.log(RethinkDBServer.getConnectionParams());
-});
-
 test('is connected', t => {
   t.pass();
+});
+
+test('can get connection string', async t => {
+  let options = await RethinkDBServer.getConnectionParams();
+
+  t.not(options.db, undefined);
+  t.not(options.servers, undefined);
 });
 
 test.after.always(t => {
