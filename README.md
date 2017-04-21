@@ -19,9 +19,30 @@ using ES6 then you can convert it to the appropriate Promise syntax.
 
 Available on NPM using: `npm install rethinkmem --save-dev` or `yarn add rethinkmem --dev`
 
-*See here for usage examples: https://coligo.io/javascript-async-await/* 
-
+**Example Using AVA Test Runner:**
 ```javascript
-//todo
+import test from 'ava';
+import r from 'rethinkdbdash';
+import { RethinkDBServer } from 'rethinkmem';
+
+test.before(async t => {
+  await RethinkDBServer.start();
+});
+
+test.beforeEach(async t => {
+  let connectionOptions = await RethinkDBServer.getConnectionParams();
+  t.context.db = r(connectionOptions);
+});
+
+test('something', async t => {
+  const {db} = t.context;
+  
+  /// db.table('myTable')...
+  // Test something amazing?
+});
+
+test.after.always(t => {
+  RethinkDBServer.tearDown(); // This is required to clean up temporary files and processes created.
+});
 ```
 
